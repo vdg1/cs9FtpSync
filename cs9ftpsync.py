@@ -5,6 +5,7 @@ import ftplib
 import io
 import threading
 import glob
+import fnmatch
 import os
 from io import BytesIO
 from icmplib import ping
@@ -19,12 +20,13 @@ passwd = "spec_cal"
 
 # create a threading class to sync the controller folder with the target
 class sync(threading.Thread):
-    def __init__(self, localFolder, remoteFolder, host):
+    def __init__(self, localFolder, remoteFolder, host, include=["*"]):
         threading.Thread.__init__(self)
         self.localFolder = localFolder
         self.remoteFolder = remoteFolder
         self.host = host
         self.kill = False
+        self.include = include
 
     def run(self):
         print ("Starting sync thread for "+self.localFolder)
@@ -32,13 +34,18 @@ class sync(threading.Thread):
             try:
                 # recurse into local folders starting at self.localFolder
                 for root, dirs, files in os.walk(self.localFolder):
+                    # check if level is 1 (only one level deep)
+                    if root.count(os.sep) == self.localFolder.count(os.sep):
+                        print("root: "+root)
+                        # filter dirs to include only dirs matching pattern list 'include'
+                        dirs[:] = [d for d in dirs if any(fnmatch.fnmatch(d, pat) for pat in self.include)]
                     for dir in dirs:
                         # remove localFolder from root
                         root=root.replace(self.localFolder,"")
                         local = FsTarget(self.localFolder+root+"/"+dir)
                         scanRemoteFolder=self.remoteFolder+root+"/"+dir
                         remote = FTPTarget(scanRemoteFolder, host=self.host, username=user, password=passwd)
-                        opts = {"force": True, "verbose": 3, "resolve": "ask", "dry_run": False, "exclude": ".git,*.bak", "match": "*"}
+                        opts = {"force": True, "verbose": 3, "resolve": "ask", "dry_run": False, "exclude": ".git,*.bak", "match": "*", "create_folder": True, "delete_unmatched": True, "delete_extra": True, "ignore_time": False, "ignore_case": False, "ignore_existing": False, "ignore_errors": False, "preserve_perm": False, "preserve_symlinks": False, "preserve_remote_times": False, "progress": False, "stats": False, "timeshift": 0, "timeout": 15, "maxfails": 0, "maxtimeouts": 0, "maxdepth": 0, "maxsize": 0, "maxage": 0, "minsize": 0, "minage": 0, "dry_run": False, "exclude": ".git,*.bak"}
                         s = BiDirSynchronizer(local, remote, opts)
                         s.run()
             except ftplib.all_errors as e:
@@ -134,7 +141,7 @@ def startFTPSyncProcess(path,processes):
     if localSerialNumber == remoteSerialNumber:
         print("SerialNumbers are equal")
         # create syncThread
-        syncThread=sync(path+"/usr/usrapp", "/usr/usrapp", target)
+        syncThread=sync(path+"\\usr\\usrapp", "/usr/usrapp", target, include=['a*','io*'])
         # start syncThread
         syncThread.start()
         processes[path]=syncThread
