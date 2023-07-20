@@ -12,21 +12,25 @@ from icmplib import ping
 from ftpsync.targets import FsTarget
 from ftpsync.ftp_target import FTPTarget
 from ftpsync.synchronizers import BiDirSynchronizer
+from configparser import ConfigParser
 
 
 
-user ="maintenance"
-passwd = "spec_cal"
+user =""
+passwd = ""
 
 # create a threading class to sync the controller folder with the target
 class sync(threading.Thread):
-    def __init__(self, localFolder, remoteFolder, host, include=["*"]):
+    def __init__(self, localFolder, remoteFolder, host, username, password, include=["*"]):
         threading.Thread.__init__(self)
         self.localFolder = localFolder
         self.remoteFolder = remoteFolder
         self.host = host
         self.kill = False
         self.include = include
+        self.username = username
+        self.password = password
+
 
     def run(self):
         print ("Starting sync thread for "+self.localFolder)
@@ -36,15 +40,15 @@ class sync(threading.Thread):
                 for root, dirs, files in os.walk(self.localFolder):
                     # check if level is 1 (only one level deep)
                     if root.count(os.sep) == self.localFolder.count(os.sep):
-                        print("root: "+root)
-                        # filter dirs to include only dirs matching pattern list 'include'
-                        dirs[:] = [d for d in dirs if any(fnmatch.fnmatch(d, pat) for pat in self.include)]
+                        # filter dirs to remove entries that do not match any pattern in list self.include
+                        dirs[:] = [d for d in dirs if any(fnmatch.fnmatch(d, pattern) for pattern in self.include)]
+                        
                     for dir in dirs:
                         # remove localFolder from root
                         root=root.replace(self.localFolder,"")
                         local = FsTarget(self.localFolder+root+"/"+dir)
                         scanRemoteFolder=self.remoteFolder+root+"/"+dir
-                        remote = FTPTarget(scanRemoteFolder, host=self.host, username=user, password=passwd)
+                        remote = FTPTarget(scanRemoteFolder, host=self.host, username=self.username, password=self.password)
                         opts = {"force": True, "verbose": 3, "resolve": "ask", "dry_run": False, "exclude": ".git,*.bak", "match": "*", "create_folder": True, "delete_unmatched": True, "delete_extra": True, "ignore_time": False, "ignore_case": False, "ignore_existing": False, "ignore_errors": False, "preserve_perm": False, "preserve_symlinks": False, "preserve_remote_times": False, "progress": False, "stats": False, "timeshift": 0, "timeout": 15, "maxfails": 0, "maxtimeouts": 0, "maxdepth": 0, "maxsize": 0, "maxage": 0, "minsize": 0, "minage": 0, "dry_run": False, "exclude": ".git,*.bak"}
                         s = BiDirSynchronizer(local, remote, opts)
                         s.run()
@@ -75,6 +79,33 @@ def getSRCProcesses(name):
     return pid
 
 def startFTPSyncProcess(path,processes):
+    include = ["*"]
+    # open config file ftpsync.ini in path using config parser
+    config = ConfigParser()
+    config.read(path+"/ftpsync.ini")
+    # check if config file could be read
+    if not config.sections():
+        print("Error reading ftpsync.ini in ",path)
+        return False
+    # check if config file contains section 'ftpsync' and option 'enable' and if it is set to 'false'
+    if config.has_option('ftpsync', 'enabled') and not config.getboolean('ftpsync', 'enabled'):
+        print("ftpsync is disabled for ",path)
+        return False
+    # retrieve username and password from config file
+    if config.has_option('ftpsync', 'username'):
+        user = config.get('ftpsync', 'username')
+    if config.has_option('ftpsync', 'password'):
+        passwd = config.get('ftpsync', 'password')
+    if config.has_option('ftpsync', 'include'):
+        include = config.get('ftpsync', 'include').split(',')
+        # remove leading and trailing spaces from items in list
+        include = [x.strip() for x in include]
+    # check if username and password are empty
+    if user == "" or passwd == "":
+        print("username or password is empty")
+        return False
+    
+
     # extract controller name from path (last item of path)
     controllerName=path.rsplit('\\', 1)[1]
     # read xml config file in controller folder
@@ -141,7 +172,7 @@ def startFTPSyncProcess(path,processes):
     if localSerialNumber == remoteSerialNumber:
         print("SerialNumbers are equal")
         # create syncThread
-        syncThread=sync(path+"\\usr\\usrapp", "/usr/usrapp", target, include=['a*','io*'])
+        syncThread=sync(path+"\\usr\\usrapp", "/usr/usrapp", target, user, passwd, include=include)
         # start syncThread
         syncThread.start()
         processes[path]=syncThread
