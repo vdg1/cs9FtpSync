@@ -19,6 +19,17 @@ from configparser import ConfigParser
 user =""
 passwd = ""
 
+#inherit from BiDirSynchronizer to overwrite the method _interactive_resolve
+class MyBiDirSynchronizer(BiDirSynchronizer):
+    def _interactive_resolve(self, pair):
+        #print("Conflict: "+pair.name)
+        # call the parent method _interactive_resolve_conflict
+        return super()._interactive_resolve( pair)
+
+    
+        
+    
+
 # create a threading class to sync the controller folder with the target
 class sync(threading.Thread):
     def __init__(self, localFolder, remoteFolder, host, username, password, include=["*"]):
@@ -50,7 +61,7 @@ class sync(threading.Thread):
                         scanRemoteFolder=self.remoteFolder+root+"/"+dir
                         remote = FTPTarget(scanRemoteFolder, host=self.host, username=self.username, password=self.password)
                         opts = {"force": True, "verbose": 3, "resolve": "ask", "dry_run": False, "exclude": ".git,*.bak", "match": "*", "create_folder": True, "delete_unmatched": True, "delete_extra": True, "ignore_time": False, "ignore_case": False, "ignore_existing": False, "ignore_errors": False, "preserve_perm": False, "preserve_symlinks": False, "preserve_remote_times": False, "progress": False, "stats": False, "timeshift": 0, "timeout": 15, "maxfails": 0, "maxtimeouts": 0, "maxdepth": 0, "maxsize": 0, "maxage": 0, "minsize": 0, "minage": 0, "dry_run": False, "exclude": ".git,*.bak"}
-                        s = BiDirSynchronizer(local, remote, opts)
+                        s = MyBiDirSynchronizer(local, remote, opts)
                         s.run()
             except ftplib.all_errors as e:
                 print('FTP error:',self.host,":", e)
