@@ -16,9 +16,6 @@ from configparser import ConfigParser
 
 
 
-user =""
-passwd = ""
-
 #inherit from BiDirSynchronizer to overwrite the method _interactive_resolve
 class MyBiDirSynchronizer(BiDirSynchronizer):
     def _interactive_resolve(self, pair):
@@ -73,11 +70,11 @@ class sync(threading.Thread):
 
 
 # function which returns a dict containing PID, cmd line arguments of processes with name 'src.exe' 
-def getSRCProcesses(name):
+def getSRCProcesses():
     pid = {}
-    # iterate over the all the running process and return cmd line arguments of processes with name 'src.exe'
+    # iterate over all running process and return cmd line arguments of processes with name 'src.exe'
     for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-      if proc.name() == name:
+      if proc.name() == "src.exe":
             # extract cmd line arguments of the process
             c=proc.cmdline()
             # parse the command line arguments of the process and extract the next argument after the argument '/USR'
@@ -212,25 +209,25 @@ def main():
     # run an infinite loop every 5 seconds
     while True:
         # call the function to get the list of processes and print the cmd line arguments of the process
-        pid = getSRCProcesses('src.exe')
-        if pid:
+        pids = getSRCProcesses()
+        if pids:
             # iterate over the list of processes and print the command line arguments and pid of each process
-            for p in pid:
+            for p in pids:
                 # check if cs8Processes dict does not contain the path of the process
                 if p not in cs8Processes:
                     if startFTPSyncProcess(p,syncProcesses):
                         # add process to list
-                        cs8Processes[p] = pid[p]
-                        print("Add new src process to watch list: "+p)
-                        # start ftp sync process
-                        print("Start ftp sync process: "+p)
+                        cs8Processes[p] = pids[p]
+                        print("Added new src.exe process to watch list: "+p)
                     
 
         # copy cs8Processes dict to a new dict
         cs8ProcessesCopy = cs8Processes.copy()
         # iterate over cs8Processes dict and check if the process is still running
         for p in cs8ProcessesCopy:
-            if p not in pid:
+            # check if process is not running anymore or process was terminated
+            
+            if p not in pids or not pids[p].is_running():
                 # remove process from list
                 print("Remove src process from watch list: "+p)
                 del cs8Processes[p]
