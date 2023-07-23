@@ -5,7 +5,7 @@ block_cipher = None
 
 
 a = Analysis(
-    ['src\\cs9ftpsync.py'],
+    ['cs9ftpsync.py'],
     pathex=[],
     binaries=[],
     datas=[],
