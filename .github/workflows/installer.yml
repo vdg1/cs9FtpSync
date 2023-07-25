@@ -2,24 +2,23 @@ name: Package Application with Pyinstaller
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Package Application
-      uses: JackMcKew/pyinstaller-action-windows@main
-      with:
-        path: src
+      - name: Package Application
+        uses: JackMcKew/pyinstaller-action-windows@main
+        with:
+          path: src
 
-    - uses: actions/upload-artifact@v2
-      with:
-        name: name-of-artifact
-        path: src/dist/windows
+      - uses: actions/upload-artifact@v2
+        with:
+          name: cs9ftpsync.exe
+          path: src/dist/windows
