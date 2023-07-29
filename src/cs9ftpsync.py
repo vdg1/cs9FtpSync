@@ -13,6 +13,10 @@ from ftpsync.targets import FsTarget
 from ftpsync.ftp_target import FTPTarget
 from ftpsync.synchronizers import BiDirSynchronizer
 from configparser import ConfigParser
+# import version.py from the same folder
+from version import __version__
+
+print(f"Running version: {__version__}")
 
 
 
