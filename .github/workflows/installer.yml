@@ -20,5 +20,5 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: cs9ftpsync.exe
+          name: cs9ftpsync-${GITHUB_REF#refs/tags/}.exe
           path: src/dist/windows
