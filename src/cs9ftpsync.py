@@ -7,8 +7,10 @@ import threading
 import glob
 import fnmatch
 import os
+import datetime
 from io import BytesIO
 from icmplib import ping
+from windows_toasts import WindowsToaster, ToastText2
 from ftpsync.targets import FsTarget
 from ftpsync.ftp_target import FTPTarget
 from ftpsync.synchronizers import BiDirSynchronizer
@@ -22,10 +24,43 @@ print(f"Running version: {__version__}")
 
 #inherit from BiDirSynchronizer to overwrite the method _interactive_resolve
 class MyBiDirSynchronizer(BiDirSynchronizer):
+    # override init
+    def __init__(self, local, remote, options):
+        super().__init__(local, remote, options)
+        # list of upload/download files
+        self._upload_pairs = []
+        self._download_pairs = []
+        self._delete_pairs = []
+
     def _interactive_resolve(self, pair):
         #print("Conflict: "+pair.name)
         # call the parent method _interactive_resolve_conflict
         return super()._interactive_resolve( pair)
+    
+    # override on_copy_lo,cal
+    def on_copy_local(self, pair):
+        self._upload_pairs.append(pair)
+        # call the parent method on_copy_local
+        return super().on_copy_local(pair)
+    
+    # override on_copy_remote
+    def on_copy_remote(self, pair):
+        self._download_pairs.append(pair)
+        # call the parent method on_copy_remote
+        return super().on_copy_remote(pair)
+    
+    # override on_delete_local
+    def on_delete_local(self, pair):
+        self._delete_pairs.append(pair)
+        # call the parent method on_delete_local
+        return super().on_delete_local(pair)
+    
+    # override on_delete_remote
+    def on_delete_remote(self, pair):
+        self._delete_pairs.append(pair)
+        # call the parent method on_delete_remote
+        return super().on_delete_remote(pair)
+    
 
     
         
@@ -47,8 +82,9 @@ class sync(threading.Thread):
     def run(self):
         print ("Starting sync thread for "+self.localFolder)
         while not self.kill:
+            downloadedPaths = []
             try:
-                # recurse into local folders starting at self.localFolder
+                # recurse into local folders starting at self.localFolder                
                 for root, dirs, files in os.walk(self.localFolder):
                     # check if level is 1 (only one level deep)
                     if root.count(os.sep) == self.localFolder.count(os.sep):
@@ -64,10 +100,54 @@ class sync(threading.Thread):
                         opts = {"force": True, "verbose": 3, "resolve": "ask", "dry_run": False, "exclude": ".git,*.bak", "match": "*", "create_folder": True, "delete_unmatched": True, "delete_extra": True, "ignore_time": False, "ignore_case": False, "ignore_existing": False, "ignore_errors": False, "preserve_perm": False, "preserve_symlinks": False, "preserve_remote_times": False, "progress": False, "stats": False, "timeshift": 0, "timeout": 15, "maxfails": 0, "maxtimeouts": 0, "maxdepth": 0, "maxsize": 0, "maxage": 0, "minsize": 0, "minage": 0, "dry_run": False, "exclude": ".git,*.bak"}
                         s = MyBiDirSynchronizer(local, remote, opts)
                         s.run()
+            
+                        print("")
+                        if len(s._upload_pairs) > 0 or len(s._download_pairs) > 0:
+                            print("Uploaded files:",len(s._upload_pairs))
+                            print("Downloaded files:",len(s._download_pairs))
+                        if len(s._download_pairs) > 0:
+                            # consolidate the pairs list by removing duplicates of the same relative path of the local file
+                    
+                            for downloadedPath in s._download_pairs:
+                                if downloadedPath.local is not None and not any(x == downloadedPath.local.rel_path for x in downloadedPaths):
+                                    downloadedPaths.append(downloadedPath.local.rel_path)
+                            
+                                    
             except ftplib.all_errors as e:
                 print('FTP error:',self.host,":", e)
             except Exception as e:
                 print('Error:', e)
+
+            if len(downloadedPaths) > 0:
+                reloadApps = []
+                # iterate over pairs and walk up the folder tree to find the first folder that contains a *.dtx file
+                for downloadedPath in downloadedPaths:
+                    # split the relative path of the local file into a list of folders
+                    folders = downloadedPath.split("\\")
+                    # iterate over the list of folders starting at the last folder
+                    for i in range(len(folders),0,-1):
+                        # join the folders to a path
+                        path = "/".join(folders[0:i])
+                        # check if the path contains a *.dtx file
+                        if len(glob.glob(path+"/*.dtx")) > 0:
+                            # remove from start up to and including 'usrapp/' from the path
+                            path = path[path.find("usrapp")+len("usrapp")+1:]
+
+                            # add the path to the list of folders to reload
+                            reloadApps.append(path)
+                            # break the loop
+                            break
+                # create a windows toast message
+                toaster = WindowsToaster("CS9 FTP Syncronisation")
+                newToast = ToastText2()
+                t=datetime.datetime.now()
+                # add 20 seconds to the current time
+                t=t+datetime.timedelta(seconds=20)
+                newToast.SetExpirationTime(t)
+                newToast.SetBody("Applications were downloaded from controller. Consider to reload following applications in SRS")
+                line=", ".join(reloadApps)
+                newToast.SetFirstLine(line)
+                toaster.show_toast(newToast)
             # wait 5 seconds
             time.sleep(5)
                 
