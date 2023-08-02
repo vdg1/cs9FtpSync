@@ -22,7 +22,7 @@ print(f"Running version: {__version__}")
 
 
 
-#inherit from BiDirSynchronizer to overwrite the method _interactive_resolve
+#inherit from BiDirSynchronizer to override some methods
 class MyBiDirSynchronizer(BiDirSynchronizer):
     # override init
     def __init__(self, local, remote, options):
@@ -33,20 +33,16 @@ class MyBiDirSynchronizer(BiDirSynchronizer):
         self._delete_pairs = []
 
     def _interactive_resolve(self, pair):
-        #print("Conflict: "+pair.name)
-        # call the parent method _interactive_resolve_conflict
         return super()._interactive_resolve( pair)
     
     # override on_copy_lo,cal
     def on_copy_local(self, pair):
         self._upload_pairs.append(pair)
-        # call the parent method on_copy_local
         return super().on_copy_local(pair)
     
     # override on_copy_remote
     def on_copy_remote(self, pair):
         self._download_pairs.append(pair)
-        # call the parent method on_copy_remote
         return super().on_copy_remote(pair)
     
     # override on_delete_local
@@ -119,24 +115,7 @@ class sync(threading.Thread):
                 print('Error:', e)
 
             if len(downloadedPaths) > 0:
-                reloadApps = []
-                # iterate over pairs and walk up the folder tree to find the first folder that contains a *.dtx file
-                for downloadedPath in downloadedPaths:
-                    # split the relative path of the local file into a list of folders
-                    folders = downloadedPath.split("\\")
-                    # iterate over the list of folders starting at the last folder
-                    for i in range(len(folders),0,-1):
-                        # join the folders to a path
-                        path = "/".join(folders[0:i])
-                        # check if the path contains a *.dtx file
-                        if len(glob.glob(path+"/*.dtx")) > 0:
-                            # remove from start up to and including 'usrapp/' from the path
-                            path = path[path.find("usrapp")+len("usrapp")+1:]
-
-                            # add the path to the list of folders to reload
-                            reloadApps.append(path)
-                            # break the loop
-                            break
+                reloadApps = self.checkTouchedFolders(downloadedPaths)
                 # create a windows toast message
                 toaster = WindowsToaster("CS9 FTP Syncronisation")
                 newToast = ToastText2()
@@ -150,6 +129,26 @@ class sync(threading.Thread):
                 toaster.show_toast(newToast)
             # wait 5 seconds
             time.sleep(5)
+
+    def checkTouchedFolders(self, downloadedPaths):
+        reloadApps = []
+                # iterate over pairs and walk up the folder tree to find the first folder that contains a *.dtx file
+        for downloadedPath in downloadedPaths:
+                    # split the relative path of the local file into a list of folders
+            folders = downloadedPath.split("\\")
+                    # iterate over the list of folders starting at the last folder
+            for i in range(len(folders),0,-1):
+                        # join the folders to a path
+                path = "/".join(folders[0:i])
+                        # check if the path contains a *.dtx file
+                if len(glob.glob(path+"/*.dtx")) > 0:
+                            # remove from start up to and including 'usrapp/' from the path
+                    path = path[path.find("usrapp")+len("usrapp")+1:]
+                            # add the path to the list of folders to reload
+                    reloadApps.append(path)
+                            # break the loop
+                    break
+        return reloadApps
                 
 
 
@@ -275,8 +274,6 @@ def startFTPSyncProcess(path,processes):
         print("SerialNumbers are not equal")
         return False
 
-
-
 def stopFTPSyncProcess(path,processes):
     print("stop "+path)
     processes[path].kill = True
@@ -285,7 +282,6 @@ def stopFTPSyncProcess(path,processes):
     print("stopped "+path)
 
 
-# create main function
 def main():
     cs8Processes = {}
     syncProcesses = {}
