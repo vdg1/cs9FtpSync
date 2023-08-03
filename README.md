@@ -56,12 +56,14 @@ enabled=true
 username=maintenance
 password=spec_cal
 include=io*, a*
+checkInterval=15
 ```
 
-enabled: Set to true to enable synchronization.
-username: The username for FTP authentication.
-password: The password for FTP authentication.
-include: A comma-separated list of file patterns to include in the synchronization.
+- enabled: Set to true to enable synchronization.
+- username: The username for FTP authentication.
+- password: The password for FTP authentication.
+- include: A comma-separated list of file patterns to include in the synchronization.
+- checkInterval: Compare the local and remote folder at specified interval in seconds
 
 Save the changes.
 
