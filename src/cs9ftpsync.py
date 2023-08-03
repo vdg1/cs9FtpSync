@@ -64,7 +64,7 @@ class MyBiDirSynchronizer(BiDirSynchronizer):
 
 # create a threading class to sync the controller folder with the target
 class sync(threading.Thread):
-    def __init__(self, localFolder, remoteFolder, host, username, password, include=["*"]):
+    def __init__(self, localFolder, remoteFolder, host, username, password, include=["*"], checkInterval=5):
         threading.Thread.__init__(self)
         self.localFolder = localFolder
         self.remoteFolder = remoteFolder
@@ -73,6 +73,7 @@ class sync(threading.Thread):
         self.include = include
         self.username = username
         self.password = password
+        self.checkInterval = checkInterval
 
 
     def run(self):
@@ -128,7 +129,7 @@ class sync(threading.Thread):
                 newToast.SetFirstLine(line)
                 toaster.show_toast(newToast)
             # wait 5 seconds
-            time.sleep(5)
+            time.sleep(self.checkInterval)
 
     def checkTouchedFolders(self, downloadedPaths):
         reloadApps = []
@@ -182,6 +183,12 @@ def startFTPSyncProcess(path,processes):
     if config.has_option('ftpsync', 'enabled') and not config.getboolean('ftpsync', 'enabled'):
         print("ftpsync is disabled for ",path)
         return False
+    # check if config file has option 'checkInterval' and if it is set to a value > 0
+    if config.has_option('ftpsync', 'checkInterval') and config.getint('ftpsync', 'checkInterval') > 0:
+        checkInterval = config.getint('ftpsync', 'checkInterval')
+    else:
+        checkInterval = 10
+    
     # retrieve username and password from config file
     if config.has_option('ftpsync', 'username'):
         user = config.get('ftpsync', 'username')
@@ -263,7 +270,7 @@ def startFTPSyncProcess(path,processes):
     if localSerialNumber == remoteSerialNumber:
         print("SerialNumbers are equal")
         # create syncThread
-        syncThread=sync(path+"\\usr\\usrapp", "/usr/usrapp", target, user, passwd, include=include)
+        syncThread=sync(path+"\\usr\\usrapp", "/usr/usrapp", target, user, passwd, include=include, checkInterval=checkInterval)
         # start syncThread
         syncThread.start()
         processes[path]=syncThread
